@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Master – Console del narratore</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">⚔ Master</div>
+    <button id="btn-open-folder" title="Scegli la cartella della campagna">📁 Apri campagna</button>
+    <button id="btn-restore-folder" hidden>🔓 Riapri <span id="restore-name"></span></button>
+    <span id="campaign-name" class="muted"></span>
+    <label class="sess">Sessione <select id="session-select"><option value="">—</option></select></label>
+    <button id="btn-reload-docx" title="Rilegge il documento della sessione">↻</button>
+    <span class="spacer"></span>
+    <button id="btn-preview" title="Scorre tutte le scene per un controllo finale">▶ Anteprima sessione</button>
+    <button id="btn-open-player" title="Apre la finestra da mettere sullo schermo dei giocatori">🖥 Schermo giocatori <span id="player-dot" class="dot"></span></button>
+    <button id="btn-settings" title="Impostazioni campagna">⚙</button>
+  </header>
+
+  <div id="welcome">
+    <div class="card">
+      <h1>⚔ Master</h1>
+      <p>Console del narratore: testo della sessione, cue 1-click per lo schermo dei giocatori, audio e appunti.</p>
+      <p>Apri la cartella della campagna per iniziare. Se non esiste, scegli una cartella vuota: verranno create le sottocartelle <code>sessioni/</code> e <code>media/</code>.</p>
+      <div class="row">
+        <button class="primary" id="btn-welcome-open">📁 Apri cartella campagna</button>
+        <button id="btn-welcome-restore" hidden>🔓 Riapri <span id="welcome-restore-name"></span></button>
+      </div>
+      <p class="muted small" id="welcome-note"></p>
+    </div>
+  </div>
+
+  <main id="layout" hidden>
+    <aside id="col-left">
+      <div class="col-title">Scene <span id="scene-count" class="muted"></span></div>
+      <ul id="scene-list"></ul>
+    </aside>
+    <div class="gutter" data-target="col-left"></div>
+
+    <section id="col-center">
+      <div id="scene-head">
+        <div class="scene-title-row">
+          <h2 id="scene-title">—</h2>
+          <button id="btn-load-scene" class="primary" title="Applica le cue previste per la scena (Invio)">▶ Carica scena</button>
+        </div>
+        <div id="orphan-bar" hidden>
+          <span>Cue senza scena. Spostale in:</span>
+          <select id="orphan-target"></select>
+          <button id="btn-orphan-move">Sposta</button>
+        </div>
+      </div>
+      <div id="scene-text" class="doc"></div>
+      <div id="cue-bar">
+        <div id="cue-list"></div>
+        <div class="cue-add">
+          <button id="btn-cue-library" title="Vai alla libreria per aggiungere una cue">＋ dalla libreria</button>
+          <button id="btn-cue-text" title="Testo da mostrare ai giocatori">＋ testo</button>
+          <button id="btn-cue-file" title="Carica un file al volo">＋ file al volo</button>
+          <input type="file" id="adhoc-file" multiple hidden accept="image/*,video/*,audio/*">
+        </div>
+      </div>
+    </section>
+    <div class="gutter" data-target="col-right"></div>
+
+    <aside id="col-right">
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="screen">Schermo e libreria <span id="lib-badge" class="badge" hidden></span></button>
+        <button class="tab-btn" data-tab="history">Storico</button>
+        <button class="tab-btn" data-tab="notes">Appunti</button>
+      </nav>
+
+      <div class="tab" id="tab-screen">
+        <div id="preview-wrap"><iframe id="preview" title="Anteprima schermo giocatori"></iframe></div>
+        <div id="player-hint" class="muted small"></div>
+        <div class="ctrl-grid">
+          <button id="btn-close-frame" title="Esc">✕ Chiudi riquadro</button>
+          <button id="btn-hide-caption">✕ Didascalia</button>
+          <button id="btn-title" title="Mostra il titolo della scena ai giocatori">🏷 Titolo scena</button>
+          <button id="btn-dim" title="Oscura lo sfondo">🌘 Oscura sfondo</button>
+          <button id="btn-black" class="danger" title="B">⬛ Schermo nero</button>
+          <button id="btn-stop-audio" title="Spazio">⏹ Stop audio</button>
+        </div>
+        <div class="volume-row">
+          <span class="section-title">Volume</span>
+          <div class="presets">
+            <button class="preset-btn" data-preset="sottofondo" title="1">Sottofondo</button>
+            <button class="preset-btn" data-preset="critico" title="2">Momento critico</button>
+            <button class="preset-btn" data-preset="enfasi" title="3">Enfasi</button>
+          </div>
+          <input type="range" id="volume-slider" min="0" max="100" value="30">
+        </div>
+        <div id="now-playing" class="muted small">Nessun audio</div>
+
+        <div class="section-title lib-head">Libreria</div>
+        <div class="lib-toolbar">
+          <div class="kinds">
+            <button class="kind-btn active" data-kind="all">Tutti</button>
+            <button class="kind-btn" data-kind="personaggi" title="Personaggi (media/personaggi)">👤</button>
+            <button class="kind-btn" data-kind="luoghi" title="Luoghi (media/luoghi)">🏞</button>
+            <button class="kind-btn" data-kind="immagini" title="Altre immagini" hidden>🖼</button>
+            <button class="kind-btn" data-kind="video" title="Video">🎬</button>
+            <button class="kind-btn" data-kind="audio" title="Audio">🎵</button>
+          </div>
+          <input type="search" id="lib-search" placeholder="Cerca per nome…">
+          <select id="lib-sort" title="Ordina">
+            <option value="name">Nome</option>
+            <option value="mtime">Data</option>
+            <option value="used">Ultimo uso</option>
+            <option value="new">Da taggare</option>
+          </select>
+          <button id="btn-lib-refresh" title="Rilegge la cartella media">↻</button>
+          <button id="btn-lib-tags" title="Gestione tag">🏷</button>
+        </div>
+        <div id="lib-tags" class="chips"></div>
+        <div id="lib-status" class="muted small"></div>
+        <div id="lib-selbar" hidden>
+          <span id="sel-count"></span>
+          <button id="btn-sel-frame" title="Mostra nel riquadro (max 4)">Riquadro</button>
+          <button id="btn-sel-cue-frame" title="Aggiungi come cue riquadro alla scena">＋ cue</button>
+          <button id="btn-sel-tag-add">＋ tag</button>
+          <button id="btn-sel-tag-remove">− tag</button>
+          <button id="btn-sel-clear">✕</button>
+        </div>
+        <div id="lib-grid"></div>
+      </div>
+
+      <div class="tab" id="tab-history" hidden>
+        <div class="section-title">Mostrato in questa sessione</div>
+        <div id="history-list"></div>
+      </div>
+
+      <div class="tab" id="tab-notes" hidden>
+        <div class="section-title">Appunti scena <span id="notes-scene-name" class="muted"></span></div>
+        <textarea id="notes-scene" placeholder="Appunti per questa scena…"></textarea>
+        <div class="section-title">Appunti sessione</div>
+        <textarea id="notes-session" placeholder="Appunti generali della sessione…"></textarea>
+      </div>
+    </aside>
+  </main>
+
+  <footer id="preview-bar" hidden>
+    <button id="pv-prev">⏮</button>
+    <button id="pv-pause">⏸</button>
+    <button id="pv-next">⏭</button>
+    <button id="pv-stop" class="danger">⏹ Stop</button>
+    <div id="pv-progress"><div id="pv-progress-fill"></div></div>
+    <span id="pv-label"></span>
+    <label><input type="checkbox" id="pv-muted" checked> audio silenziato</label>
+    <label><input type="checkbox" id="pv-local"> solo anteprima console</label>
+  </footer>
+
+  <div id="drop-overlay" hidden><div>Rilascia per mostrare ai giocatori</div></div>
+  <div id="toast" hidden></div>
+
+  <dialog id="dlg-text">
+    <form method="dialog">
+      <h3>Testo per i giocatori</h3>
+      <label>Etichetta del bottone <input id="text-label" placeholder="es. Iscrizione sulla porta"></label>
+      <label>Testo <textarea id="text-body" rows="5" required></textarea></label>
+      <label>Stile
+        <select id="text-style">
+          <option value="card">Scheda nel riquadro</option>
+          <option value="caption">Didascalia in basso</option>
+          <option value="title">Titolo grande</option>
+        </select>
+      </label>
+      <div class="row">
+        <button value="cancel">Annulla</button>
+        <button value="show">Mostra ora</button>
+        <button value="cue" class="primary">Aggiungi come cue</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-cue">
+    <form method="dialog">
+      <h3>Modifica cue</h3>
+      <label>Etichetta <input id="cue-label"></label>
+      <label id="cue-row-preset">Preset volume
+        <select id="cue-preset">
+          <option value="sottofondo">Sottofondo</option>
+          <option value="critico">Momento critico</option>
+          <option value="enfasi">Enfasi</option>
+        </select>
+      </label>
+      <label id="cue-row-loop" class="check"><input type="checkbox" id="cue-loop"> Ripeti in loop</label>
+      <label id="cue-row-full" class="check"><input type="checkbox" id="cue-full"> Video a tutto schermo</label>
+      <label id="cue-row-text">Testo <textarea id="cue-text" rows="4"></textarea></label>
+      <label id="cue-row-style">Stile
+        <select id="cue-style">
+          <option value="card">Scheda nel riquadro</option>
+          <option value="caption">Didascalia in basso</option>
+          <option value="title">Titolo grande</option>
+        </select>
+      </label>
+      <div class="row">
+        <button value="delete" class="danger">Elimina</button>
+        <button value="import" id="btn-cue-import" hidden title="Copia il file in media/importati e rende la cue permanente">📥 Importa in libreria</button>
+        <span class="spacer"></span>
+        <button value="cancel">Annulla</button>
+        <button value="ok" class="primary">Salva</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-item">
+    <form method="dialog">
+      <h3>Scheda file</h3>
+      <div id="item-path" class="muted small"></div>
+      <label>Etichetta <input id="item-label"></label>
+      <label>Tag
+        <div id="item-tags" class="chips editable"></div>
+        <input id="item-tag-input" list="tag-datalist" placeholder="Aggiungi tag e premi Invio" autocomplete="off">
+      </label>
+      <div class="row">
+        <button value="cancel">Annulla</button>
+        <button value="ok" class="primary">Salva</button>
+      </div>
+    </form>
+  </dialog>
+  <datalist id="tag-datalist"></datalist>
+
+  <dialog id="dlg-tagadd">
+    <form method="dialog">
+      <h3 id="tagadd-title">Tag</h3>
+      <label>Tag (separati da virgola) <input id="tagadd-input" list="tag-datalist" autocomplete="off"></label>
+      <div class="row">
+        <button value="cancel">Annulla</button>
+        <button value="ok" class="primary">Applica</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-tags">
+    <h3>Gestione tag</h3>
+    <table id="tags-table"></table>
+    <div class="row"><button id="btn-tags-close">Chiudi</button></div>
+  </dialog>
+
+  <dialog id="dlg-settings">
+    <form method="dialog">
+      <h3>Impostazioni campagna</h3>
+      <label>Nome campagna <input id="set-name"></label>
+      <div class="section-title">Preset volume (%)</div>
+      <div class="row3">
+        <label>Sottofondo <input type="number" id="set-p1" min="0" max="100"></label>
+        <label>Critico <input type="number" id="set-p2" min="0" max="100"></label>
+        <label>Enfasi <input type="number" id="set-p3" min="0" max="100"></label>
+      </div>
+      <div class="section-title">Riquadro</div>
+      <div class="row3">
+        <label>Colore bordo <input type="color" id="set-border"></label>
+        <label>Spessore px <input type="number" id="set-width" min="0" max="40"></label>
+        <label>Dimensione % <input type="number" id="set-size" min="30" max="100"></label>
+      </div>
+      <div class="row3">
+        <label>Testo (vmin) <input type="number" id="set-textsize" min="2" max="10" step="0.5"></label>
+        <label>Oscuramento % <input type="number" id="set-dim" min="0" max="100"></label>
+        <label>Anteprima s/scena <input type="number" id="set-preview" min="1" max="60"></label>
+      </div>
+      <label class="check"><input type="checkbox" id="set-autoload"> Carica le cue previste quando selezioni una scena</label>
+      <div class="row">
+        <button value="forget" class="danger" title="Dimentica la cartella salvata">Dimentica cartella</button>
+        <span class="spacer"></span>
+        <button value="cancel">Annulla</button>
+        <button value="ok" class="primary">Salva</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-confirm">
+    <form method="dialog">
+      <p id="confirm-text"></p>
+      <div class="row">
+        <button value="cancel">Annulla</button>
+        <button value="ok" class="danger">Conferma</button>
+      </div>
+    </form>
+  </dialog>
+</div>
+
+<script src="zip.js"></script>
+<script src="docx.js"></script>
+<script src="platform.js"></script>
+<script src="player.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

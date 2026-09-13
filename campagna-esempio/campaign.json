@@ -1,0 +1,17 @@
+{
+  "name": "Campagna di esempio",
+  "presets": {
+    "sottofondo": 30,
+    "critico": 60,
+    "enfasi": 100
+  },
+  "frame": {
+    "border": "#c9a227",
+    "width": 6,
+    "size": 76,
+    "textSize": 4
+  },
+  "dim": 45,
+  "previewSeconds": 6,
+  "autoLoadScene": true
+}

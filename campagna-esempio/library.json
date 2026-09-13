@@ -1,0 +1,123 @@
+{
+  "items": {
+    "media/luoghi/taverna.png": {
+      "kind": "image",
+      "label": "Taverna del Cinghiale",
+      "tags": [
+        "taverna",
+        "città"
+      ],
+      "added": 1789303778732,
+      "size": 11136,
+      "mtime": 1789287697371,
+      "missing": false
+    },
+    "media/luoghi/foresta.png": {
+      "kind": "image",
+      "label": "Foresta di Brann",
+      "tags": [
+        "foresta",
+        "esterni"
+      ],
+      "added": 1789303778732,
+      "size": 8446,
+      "mtime": 1789287697616,
+      "missing": false
+    },
+    "media/luoghi/torre.png": {
+      "kind": "image",
+      "label": "Torre in rovina",
+      "tags": [
+        "torre",
+        "rovine"
+      ],
+      "added": 1789303778732,
+      "size": 10401,
+      "mtime": 1789287697872,
+      "missing": false
+    },
+    "media/luoghi/torre_video.mp4": {
+      "kind": "video",
+      "label": "La torre (video)",
+      "tags": [
+        "torre",
+        "rovine"
+      ],
+      "added": 1789303778732,
+      "size": 626130,
+      "mtime": 1789287699111,
+      "missing": false
+    },
+    "media/personaggi/oste.png": {
+      "kind": "image",
+      "label": "L'oste",
+      "tags": [
+        "taverna",
+        "alleato"
+      ],
+      "added": 1789303778732,
+      "size": 1278,
+      "mtime": 1789287697946,
+      "missing": false
+    },
+    "media/personaggi/mappa.png": {
+      "kind": "image",
+      "label": "Mappa sgualcita",
+      "tags": [
+        "indizio",
+        "taverna"
+      ],
+      "added": 1789303778732,
+      "size": 2146,
+      "mtime": 1789287698029,
+      "missing": false
+    },
+    "media/audio/taverna_ambiente.mp3": {
+      "kind": "audio",
+      "label": "Brusio della taverna",
+      "tags": [
+        "ambiente",
+        "taverna"
+      ],
+      "added": 1789303778732,
+      "size": 160514,
+      "mtime": 1789287698735,
+      "missing": false
+    },
+    "media/audio/pioggia.mp3": {
+      "kind": "audio",
+      "label": "Pioggia",
+      "tags": [
+        "ambiente",
+        "esterni"
+      ],
+      "added": 1789303778732,
+      "size": 120429,
+      "mtime": 1789287698825,
+      "missing": false
+    },
+    "media/audio/colpo_di_scena.wav": {
+      "kind": "audio",
+      "label": "Colpo di scena",
+      "tags": [
+        "effetto"
+      ],
+      "added": 1789303778732,
+      "size": 176478,
+      "mtime": 1789287698853,
+      "missing": false
+    }
+  },
+  "tags": {
+    "taverna": {},
+    "città": {},
+    "foresta": {},
+    "esterni": {},
+    "torre": {},
+    "rovine": {},
+    "alleato": {},
+    "indizio": {},
+    "ambiente": {},
+    "effetto": {}
+  }
+}

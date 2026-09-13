@@ -1,0 +1,12 @@
+# macOS / Windows
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Word lock files
+~$*
+
+# Logs and tooling
+*.log
+node_modules/
+electron/dist/

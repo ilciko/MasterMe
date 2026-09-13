@@ -1,0 +1,125 @@
+{
+  "lastSession": "sessioni/01-Il-risveglio.docx",
+  "sessions": {
+    "sessioni/01-Il-risveglio.docx": {
+      "notes": "",
+      "history": [],
+      "lastScene": "la-taverna-del-cinghiale",
+      "scenes": {
+        "la-taverna-del-cinghiale": {
+          "notes": "Se i PG offrono da bere all'oste, mostra la mappa.",
+          "cues": [
+            {
+              "id": "taverna-sfondo",
+              "kind": "background",
+              "src": "media/luoghi/taverna.png"
+            },
+            {
+              "id": "taverna-audio",
+              "kind": "audio",
+              "src": "media/audio/taverna_ambiente.mp3",
+              "preset": "sottofondo",
+              "loop": true
+            },
+            {
+              "id": "oste",
+              "kind": "frame",
+              "src": "media/personaggi/oste.png"
+            },
+            {
+              "id": "mappa",
+              "kind": "frame",
+              "src": "media/personaggi/mappa.png"
+            }
+          ]
+        },
+        "il-misterioso-avventore": {
+          "notes": "",
+          "cues": [
+            {
+              "id": "avventore-effetto",
+              "kind": "audio",
+              "src": "media/audio/colpo_di_scena.wav",
+              "preset": "enfasi",
+              "loop": false
+            },
+            {
+              "id": "avventore-testo",
+              "kind": "text",
+              "text": "Eldrin, la guida",
+              "style": "title",
+              "label": "Eldrin"
+            }
+          ]
+        },
+        "la-foresta-di-brann": {
+          "notes": "",
+          "cues": [
+            {
+              "id": "foresta-sfondo",
+              "kind": "background",
+              "src": "media/luoghi/foresta.png"
+            },
+            {
+              "id": "foresta-audio",
+              "kind": "audio",
+              "src": "media/audio/pioggia.mp3",
+              "preset": "sottofondo",
+              "loop": true
+            }
+          ]
+        },
+        "la-torre-in-rovina": {
+          "notes": "",
+          "cues": [
+            {
+              "id": "torre-sfondo",
+              "kind": "background",
+              "src": "media/luoghi/torre.png"
+            },
+            {
+              "id": "torre-video",
+              "kind": "video",
+              "src": "media/luoghi/torre_video.mp4",
+              "loop": false,
+              "full": false
+            },
+            {
+              "id": "torre-iscrizione",
+              "kind": "text",
+              "text": "«Chi entra, paghi il prezzo del silenzio»",
+              "style": "card",
+              "label": "Iscrizione"
+            }
+          ]
+        }
+      }
+    },
+    "sessioni/02-La-discesa.docx": {
+      "notes": "",
+      "history": [],
+      "lastScene": "le-catacombe",
+      "scenes": {
+        "le-catacombe": {
+          "notes": "",
+          "cues": [
+            {
+              "id": "catacombe-audio",
+              "kind": "audio",
+              "src": "media/audio/pioggia.mp3",
+              "preset": "critico",
+              "loop": true
+            },
+            {
+              "id": "catacombe-testo",
+              "kind": "text",
+              "text": "Buio, umido, silenzio.",
+              "style": "caption",
+              "label": "Buio"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
