@@ -66,7 +66,7 @@ function fmtTime(ts) {
 const DEFAULT_CAMPAIGN = () => ({
   name: '', presets: { sottofondo: 30, critico: 60, enfasi: 100 },
   frame: { border: '#c9a227', width: 6, size: 76, textSize: 4 },
-  dim: 45, previewSeconds: 6, autoLoadScene: true,
+  dim: 45, previewSeconds: 6,
 });
 const S = {
   open: false,
@@ -90,7 +90,7 @@ const S = {
   fileCache: new Map(),
   playerWin: null,
   previewReady: false,
-  lib: { kind: 'all', tags: new Set(), q: '', sort: 'name', selection: new Set() },
+  lib: { kind: 'all', tags: new Set(), q: '', sort: 'name', selection: new Set(), armed: null },
   preview: null,
 };
 
@@ -222,7 +222,7 @@ function renderSceneList() {
     const n = ((sd && sd.scenes[sc.id] && sd.scenes[sc.id].cues.length) || 0) + docCues(sc).length;
     li.className = (sc.level >= 2 ? 'lvl2' : '') + (sc.id === S.sceneId && !S.orphanId ? ' active' : '') + (n ? '' : ' empty');
     li.innerHTML = `<span class="n">${i + 1}</span><span class="t" title="${esc(sc.title)}">${esc(sc.title)}</span><span class="cnt">${n ? n + ' cue' : '·'}</span>`;
-    li.onclick = () => selectScene(sc.id, { load: true });
+    li.onclick = () => selectScene(sc.id);
     ul.appendChild(li);
   });
   for (const id of orphanIds()) {
@@ -234,14 +234,13 @@ function renderSceneList() {
   }
 }
 
-function selectScene(id, { load = false } = {}) {
+function selectScene(id) {
   S.orphanId = null;
   S.sceneId = id;
   const sd = sessionData();
   if (sd) { sd.lastScene = id; saveMaster(); }
   renderSceneList();
   renderScene();
-  if (load && S.campaign.autoLoadScene && !S.preview) loadScene();
 }
 // Applica le cue previste per la scena: prima cue di ogni tipo (sfondo, riquadro/video, testo, audio)
 function loadScene(sc = currentScene()) {
@@ -475,12 +474,17 @@ function renderScene() {
 
 /* ---------- riferimenti ai file ---------- */
 function libItem(path) { return S.library.items[path]; }
-async function getFile(path) {
+async function getFile(path, { fresh = false } = {}) {
   if (path.startsWith('adhoc:') || path.startsWith('docx:')) return S.adhoc.get(path) || null;
-  if (S.fileCache.has(path)) return S.fileCache.get(path);
+  if (!fresh && S.fileCache.has(path)) return S.fileCache.get(path);
   const f = await Platform.readFile(path);
-  if (f) S.fileCache.set(path, f);
+  if (f) S.fileCache.set(path, f); else S.fileCache.delete(path);
   return f;
+}
+// Un File ottenuto da File System Access e un'istantanea: se il file viene toccato sul disco
+// ogni lettura successiva fallisce. Un byte basta per accorgersene prima di suonarlo.
+async function stillReadable(file) {
+  try { await file.slice(0, 1).arrayBuffer(); return true; } catch { return false; }
 }
 async function ref(path) {
   const file = await getFile(path);
@@ -605,6 +609,26 @@ function showSceneTitle() { const sc = currentScene(); if (sc) showText(sc.title
 /* ---------- audio ---------- */
 const AUDIO = new Audio();
 AUDIO.addEventListener('ended', () => { if (!AUDIO.loop) { S.audio.playing = false; renderNowPlaying(); renderCues(); } });
+// Con il loop attivo 'ended' non scatta mai: se la lettura del file si rompe a meta (file spostato,
+// disco scollegato, permesso decaduto) la traccia muore in silenzio e la UI resta su "in riproduzione".
+AUDIO.addEventListener('error', () => { if (AUDIO.error) audioDied('file non piu leggibile'); });
+function audioDied(why) {
+  if (!S.audio.playing) return;
+  const label = S.audio.label;
+  S.audio.playing = false;
+  clearInterval(fadeTimer);
+  renderNowPlaying(); renderCues();
+  toast(`Audio interrotto: ${label} (${why})`, 5000);
+}
+// Rete di sicurezza per gli stop che non emettono 'error'. Il cambio traccia mette in pausa
+// l'elemento per qualche millisecondo, quindi interviene solo se la pausa dura due giri.
+let audioIdleTicks = 0;
+setInterval(() => {
+  if (!S.audio.playing || !AUDIO.paused) { audioIdleTicks = 0; return; }
+  if (++audioIdleTicks < 2) return;
+  audioIdleTicks = 0;
+  AUDIO.play().catch(() => audioDied('riproduzione fermata dal browser'));
+}, 5000);
 let fadeTimer = null;
 function presetValue(name) { return ((S.campaign.presets || {})[name] ?? 30) / 100; }
 function fadeTo(target, ms, then) {
@@ -616,14 +640,16 @@ function fadeTo(target, ms, then) {
     if (k >= 1) { clearInterval(fadeTimer); then && then(); }
   }, 40);
 }
-async function playAudio(path, { loop = false, preset, label } = {}) {
+async function playAudio(path, { loop = true, preset, label } = {}) {
   if (S.audio.path === path && S.audio.playing) { stopAudio(); return; }
-  const file = await getFile(path);
+  let file = await getFile(path);
+  if (file && !(await stillReadable(file))) file = await getFile(path, { fresh: true });
   if (!file) { toast('Audio non trovato: ' + basename(path)); return; }
   if (preset && S.campaign.presets[preset] != null) setPreset(preset, true);
   const start = () => {
-    if (AUDIO.src) URL.revokeObjectURL(AUDIO.src);
+    const prev = AUDIO.src;
     AUDIO.src = URL.createObjectURL(file);
+    if (prev.startsWith('blob:')) URL.revokeObjectURL(prev);
     AUDIO.loop = loop;
     AUDIO.volume = S.preview && S.preview.muted ? 0 : S.volume;
     AUDIO.play().catch(e => toast('Audio bloccato: ' + e.message));
@@ -807,7 +833,8 @@ function editCue(c) {
   $('cue-row-text').hidden = c.kind !== 'text';
   $('cue-row-style').hidden = c.kind !== 'text';
   $('cue-preset').value = c.preset || 'sottofondo';
-  $('cue-loop').checked = !!c.loop;
+  // Per l'audio il loop e attivo salvo diniego esplicito: una cue vecchia senza flag suona in loop.
+  $('cue-loop').checked = c.kind === 'audio' ? c.loop !== false : !!c.loop;
   $('cue-full').checked = !!c.full;
   $('cue-text').value = c.text || '';
   $('cue-style').value = c.style || 'card';
@@ -878,7 +905,7 @@ async function handleAdhocFiles(files, { show = true } = {}) {
     const label = stripExt(f.name);
     if (kind === 'image') { imgs.push(key); addCue({ kind: 'frame', src: key, label, temp: true }); }
     else if (kind === 'video') { addCue({ kind: 'video', src: key, label, temp: true }); if (show) showVideo(key, { label }); }
-    else { addCue({ kind: 'audio', src: key, label, temp: true, preset: S.preset || 'sottofondo' }); if (show) playAudio(key, { label }); }
+    else { addCue({ kind: 'audio', src: key, label, temp: true, preset: S.preset || 'sottofondo', loop: true }); if (show) playAudio(key, { label }); }
   }
   if (show && imgs.length) showFrameImages(imgs.slice(0, MOSAIC_MAX));
   if (Platform.canWrite()) toast('File caricati al volo (cue tratteggiate, non salvate). Per tenerli: importali in libreria con ✎.', 4000);
@@ -989,6 +1016,7 @@ function renderLibrary() {
     for (const it of items) grid.appendChild(libCard(it));
   }
   renderSelbar();
+  syncArmed();
 }
 function renderDatalist() {
   $('tag-datalist').innerHTML = Object.keys(S.library.tags).sort().map(t => `<option value="${esc(t)}">`).join('');
@@ -998,6 +1026,7 @@ function libCard(it) {
   const sel = S.lib.selection.has(it.path);
   const isNew = it.isNew && !it.tags.length;
   el.className = 'lib-row' + (sel ? ' selected' : '') + (isNew ? ' new' : '') + (it.missing ? ' missing' : '');
+  el.dataset.path = it.path;
   const label = labelOf(it.path);
   const cat = catOf(it.path, it);
   const bgBtn = `<button data-act="bg" title="Mostra come sfondo">🏞 Sfondo</button>`, frBtn = `<button data-act="frame" title="Mostra nel riquadro">🖼 Riquadro</button>`;
@@ -1020,16 +1049,56 @@ function libCard(it) {
     <div class="acts">${acts}</div>`;
   el.querySelector('.sel').onchange = (e) => { e.target.checked ? S.lib.selection.add(it.path) : S.lib.selection.delete(it.path); el.classList.toggle('selected', e.target.checked); renderSelbar(); };
   el.querySelector('.ed').onclick = () => editItem(it.path);
-  el.querySelector('.thumb').onclick = () => { if (it.kind === 'image') showFrameImages([it.path]); else if (it.kind === 'video') showVideo(it.path); else playAudio(it.path); };
+  el.querySelector('.thumb').onclick = () => armMedia(it);
   el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => libAction(b.dataset.act, it));
   const th = el.querySelector('.thumb');
   if (it.kind !== 'audio' && !it.missing) { th.dataset.path = it.path; thumbObserver.observe(th); }
   return el;
 }
+// La libreria non manda piu niente allo schermo al primo clic: la card si "arma", mostra quale
+// destinazione userebbe e aspetta Applica. Aggiorno le card a mano invece di ridisegnare la
+// griglia, cosi le miniature gia caricate non ripartono da capo.
+function defaultDest(it) {
+  if (it.kind !== 'image') return 'play';
+  return catOf(it.path, it) === 'personaggi' ? 'frame' : 'bg';
+}
+function armMedia(it, dest) {
+  const a = S.lib.armed;
+  // Il percorso lo aggiunge libFiltered, non e sull'elemento in libreria: qui va tenuto a parte.
+  S.lib.armed = { path: it.path, kind: it.kind, dest: dest || (a && a.path === it.path ? a.dest : defaultDest(it)) };
+  syncArmed();
+}
+function applyArmed() {
+  const a = S.lib.armed;
+  if (!a) return;
+  S.lib.armed = null;
+  syncArmed();
+  if (a.dest === 'bg') toggleBackground(a.path);
+  else if (a.dest === 'frame') showFrameImages([a.path]);
+  else if (a.kind === 'video') showVideo(a.path);
+  else playAudio(a.path);
+}
+function syncArmed() {
+  const a = S.lib.armed;
+  $$('#lib-grid .lib-row').forEach(row => {
+    const on = !!a && row.dataset.path === a.path;
+    row.classList.toggle('armed', on);
+    // Video e audio non hanno destinazioni fra cui scegliere: niente da evidenziare.
+    row.querySelectorAll('[data-act]').forEach(b => b.classList.toggle('active', on && a.dest !== 'play' && b.dataset.act === a.dest));
+    const thumb = row.querySelector('.thumb');
+    const btn = thumb.querySelector('.apply');
+    if (on && !btn) {
+      const b = document.createElement('button');
+      b.className = 'apply';
+      b.textContent = '✓ Applica';
+      b.title = 'Manda allo schermo dei giocatori';
+      b.onclick = (e) => { e.stopPropagation(); applyArmed(); };
+      thumb.appendChild(b);
+    } else if (!on && btn) btn.remove();
+  });
+}
 function libAction(act, it) {
-  if (act === 'bg') toggleBackground(it.path);
-  else if (act === 'frame') showFrameImages([it.path]);
-  else if (act === 'play') it.kind === 'video' ? showVideo(it.path) : playAudio(it.path);
+  if (act === 'bg' || act === 'frame' || act === 'play') armMedia(it, act);
   else if (act === 'cue') {
     if (it.kind === 'image') addImageCueChoice([it.path]);
     else if (it.kind === 'video') addCue({ kind: 'video', src: it.path }) && toast('Cue video aggiunta');
@@ -1346,7 +1415,6 @@ function openSettings() {
   $('set-name').value = c.name; $('set-p1').value = c.presets.sottofondo; $('set-p2').value = c.presets.critico; $('set-p3').value = c.presets.enfasi;
   $('set-border').value = c.frame.border; $('set-width').value = c.frame.width; $('set-size').value = c.frame.size;
   $('set-textsize').value = c.frame.textSize; $('set-dim').value = c.dim; $('set-preview').value = c.previewSeconds;
-  $('set-autoload').checked = c.autoLoadScene !== false;
   d.onclose = async () => {
     if (d.returnValue === 'forget') {
       if (await confirmDlg('Dimenticare la cartella salvata? I file restano sul disco.')) { await Platform.forgetFolder(); location.reload(); }
@@ -1356,7 +1424,7 @@ function openSettings() {
     c.name = $('set-name').value.trim() || c.name;
     c.presets = { sottofondo: +$('set-p1').value, critico: +$('set-p2').value, enfasi: +$('set-p3').value };
     c.frame = { border: $('set-border').value, width: +$('set-width').value, size: +$('set-size').value, textSize: +$('set-textsize').value };
-    c.dim = +$('set-dim').value; c.previewSeconds = +$('set-preview').value; c.autoLoadScene = $('set-autoload').checked;
+    c.dim = +$('set-dim').value; c.previewSeconds = +$('set-preview').value;
     $('campaign-name').textContent = c.name; document.title = `Master – ${c.name}`;
     await saveCampaign(); renderPresets(); pushPlayer();
     if (S.preset) setPreset(S.preset, true);
@@ -1474,7 +1542,7 @@ function bind() {
       e.preventDefault();
       const i = S.doc.scenes.findIndex(s => s.id === S.sceneId);
       const n = S.doc.scenes[i + (e.key === 'ArrowDown' ? 1 : -1)];
-      if (n) selectScene(n.id, { load: true });
+      if (n) selectScene(n.id);
     }
     else if (e.key === 'Enter') loadScene();
   });
