@@ -192,6 +192,14 @@ dialog h3{margin:0 0 10px;color:var(--accent)}
 dialog label{display:flex;flex-direction:column;gap:4px;margin:8px 0;font-size:13px;color:var(--muted)}
 dialog label input,dialog label select,dialog label textarea{color:var(--fg)}
 dialog label.check{flex-direction:row;align-items:center}
+dialog.help{max-width:640px;max-height:85vh;overflow:auto;font-size:13px}
+dialog.help h4{margin:14px 0 6px;color:var(--fg)}
+dialog.help table{border-collapse:collapse;width:100%;font-size:inherit}
+dialog.help td{padding:3px 8px 3px 0;vertical-align:top;border-bottom:1px solid var(--line)}
+dialog.help td:first-child{white-space:nowrap}
+dialog.help ul{margin:0;padding-left:1.2em}
+dialog.help li{margin:3px 0}
+dialog.help p{margin:6px 0}
 #tags-table{width:100%;border-collapse:collapse;font-size:13px}
 #tags-table td{padding:4px 6px;border-bottom:1px solid var(--line)}
 #tags-table input[type=text]{width:130px}
@@ -209,6 +217,7 @@ dialog label.check{flex-direction:row;align-items:center}
     <label class="sess">Sessione <select id="session-select"><option value="">—</option></select></label>
     <button id="btn-reload-docx" title="Rilegge il documento della sessione">↻</button>
     <button id="btn-doc-colors" title="Mostra i colori del documento nel testo delle scene">🎨 Colori</button>
+    <button id="btn-writing-help" title="Come scrivere il documento Word della sessione">✍ Help scrittura</button>
     <span class="spacer"></span>
     <button id="btn-preview" title="Scorre tutte le scene per un controllo finale">▶ Anteprima sessione</button>
     <button id="btn-open-player" title="Apre la finestra da mettere sullo schermo dei giocatori">🖥 Schermo giocatori <span id="player-dot" class="dot"></span></button>
@@ -427,6 +436,41 @@ dialog label.check{flex-direction:row;align-items:center}
         <button value="ok" class="primary">Applica</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="dlg-writing-help" class="help">
+    <h3>Scrivere il documento della sessione</h3>
+    <h4>Stili dei paragrafi</h4>
+    <table>
+      <tr><td><b>Titolo</b></td><td>titolo della sessione</td></tr>
+      <tr><td><b>Titolo 1</b></td><td>scena nell'elenco a sinistra</td></tr>
+      <tr><td><b>Titolo 2</b></td><td>sotto-scena, rientrata nell'elenco</td></tr>
+      <tr><td><b>Titolo 3</b></td><td>apre un blocco 🔒 Note del Master, fino al titolo successivo</td></tr>
+      <tr><td><b>Titolo 4</b></td><td>didascalia 💬 per i giocatori, da mostrare a comando</td></tr>
+      <tr><td><b>Titolo 5 e oltre</b></td><td>sottotitolo dentro la scena</td></tr>
+      <tr><td><b>Normale</b></td><td>testo del corpo</td></tr>
+    </table>
+    <p class="muted">Il testo prima del primo titolo finisce nella scena "Introduzione".</p>
+    <h4>Didascalie (Titolo 4)</h4>
+    <ul>
+      <li><b>Maiusc+Invio</b> va a capo dentro la stessa didascalia.</li>
+      <li>Più paragrafi Titolo 4 di seguito formano un'unica didascalia su più righe.</li>
+      <li>Una <b>riga vuota</b> separa due didascalie distinte.</li>
+    </ul>
+    <h4>Formattazione del testo</h4>
+    <ul>
+      <li>Grassetto, corsivo e sottolineato vengono mostrati ovunque.</li>
+      <li><b>Colori</b>: colore del testo, evidenziatore e sfondo compaiono solo nel corpo (paragrafi, elenchi, tabelle, note), non in titoli e didascalie. I colori troppo scuri vengono schiariti e il nero resta del colore normale. Si spengono con 🎨 Colori.</li>
+      <li>Elenchi puntati e numerati mantengono il rientro; le tabelle restano tabelle.</li>
+      <li>Revisioni: le aggiunte compaiono, le parti cancellate no.</li>
+    </ul>
+    <h4>Immagini</h4>
+    <ul>
+      <li>Le immagini incollate diventano cue della scena, da accendere a mano.</li>
+      <li>Il nome della cue è il <b>testo alternativo</b> dell'immagine; senza, si chiama "Immagine N del documento".</li>
+      <li>Usa <b>JPG o PNG</b>: EMF e WMF (grafici e clipart di Word) non si vedono nel browser.</li>
+    </ul>
+    <div class="row"><button id="btn-writing-help-close">Chiudi</button></div>
   </dialog>
 
   <dialog id="dlg-tags">
@@ -2800,6 +2844,8 @@ function bind() {
   $('btn-lib-refresh').onclick = () => scanLibrary();
   $('btn-lib-tags').onclick = openTagManager;
   $('btn-tags-close').onclick = () => $('dlg-tags').close();
+  $('btn-writing-help').onclick = () => $('dlg-writing-help').showModal();
+  $('btn-writing-help-close').onclick = () => $('dlg-writing-help').close();
   $('btn-sel-frame').onclick = () => showFrameImages(selectedImages());
   $('btn-sel-cue-frame').onclick = () => addImageCueChoice(selectedImages());
   $('btn-sel-tag-add').onclick = () => bulkTags(true);

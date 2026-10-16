@@ -185,6 +185,14 @@ dialog h3{margin:0 0 10px;color:var(--accent)}
 dialog label{display:flex;flex-direction:column;gap:4px;margin:8px 0;font-size:13px;color:var(--muted)}
 dialog label input,dialog label select,dialog label textarea{color:var(--fg)}
 dialog label.check{flex-direction:row;align-items:center}
+dialog.help{max-width:640px;max-height:85vh;overflow:auto;font-size:13px}
+dialog.help h4{margin:14px 0 6px;color:var(--fg)}
+dialog.help table{border-collapse:collapse;width:100%;font-size:inherit}
+dialog.help td{padding:3px 8px 3px 0;vertical-align:top;border-bottom:1px solid var(--line)}
+dialog.help td:first-child{white-space:nowrap}
+dialog.help ul{margin:0;padding-left:1.2em}
+dialog.help li{margin:3px 0}
+dialog.help p{margin:6px 0}
 #tags-table{width:100%;border-collapse:collapse;font-size:13px}
 #tags-table td{padding:4px 6px;border-bottom:1px solid var(--line)}
 #tags-table input[type=text]{width:130px}

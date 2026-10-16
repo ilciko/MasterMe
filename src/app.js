@@ -1524,6 +1524,8 @@ function bind() {
   $('btn-lib-refresh').onclick = () => scanLibrary();
   $('btn-lib-tags').onclick = openTagManager;
   $('btn-tags-close').onclick = () => $('dlg-tags').close();
+  $('btn-writing-help').onclick = () => $('dlg-writing-help').showModal();
+  $('btn-writing-help-close').onclick = () => $('dlg-writing-help').close();
   $('btn-sel-frame').onclick = () => showFrameImages(selectedImages());
   $('btn-sel-cue-frame').onclick = () => addImageCueChoice(selectedImages());
   $('btn-sel-tag-add').onclick = () => bulkTags(true);

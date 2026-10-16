@@ -42,6 +42,17 @@ nell'elenco a sinistra. Grassetto, corsivo, elenchi, tabelle e immagini incorpor
 nella console.
 Lo stile **Titolo** (quello del documento) viene usato come titolo della sessione.
 Il testo prima del primo titolo finisce nella scena "Introduzione".
+Dal **Titolo 5** in giù i titoli restano dentro la scena come sottotitoli, senza crearne una nuova.
+Con le revisioni attive si vedono le aggiunte, non le parti cancellate.
+
+**Colori.** Nel testo del corpo (paragrafi, elenchi, tabelle e Note del Master) la console mostra il colore del testo,
+l'evidenziatore e lo sfondo del testo usati in Word, sia applicati a mano sia ereditati dagli stili. Titoli e didascalie
+restano nel colore normale. Per restare leggibili sul fondo scuro, i colori troppo scuri vengono schiariti mantenendo la
+tinta, il nero e i grigi scuri tornano al colore normale e sul testo evidenziato le lettere diventano scure o chiare se il
+loro colore non si legge. Il pulsante **🎨 Colori** nella barra in alto li spegne e li riaccende; è attivo di default e la
+scelta resta salvata nel browser.
+
+Il pulsante **✍ Help scrittura** nella barra in alto riassume queste regole senza uscire dalla console.
 
 Due stili hanno un significato speciale dentro una scena:
 
