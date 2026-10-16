@@ -82,6 +82,8 @@ code{background:var(--bg3);padding:1px 5px;border-radius:4px}
 .master-note{background:#2a2410;border:1px solid #6b5a1e;border-left:4px solid var(--accent);border-radius:6px;padding:8px 12px;margin:.6em 0 1em;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px}
 .master-note .note-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:4px}
 .master-note p:last-child,.master-note ul:last-child{margin-bottom:0}
+#scene-text.doc-colors .dc{color:var(--dc)}
+#scene-text.doc-colors .dc-hl{background:var(--dh);border-radius:2px;padding:0 .12em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .caption-block{display:flex;gap:10px;align-items:flex-start;background:var(--bg3);border:1px solid var(--line);border-radius:6px;padding:8px 12px;margin:.4em 0;cursor:pointer;font-size:15px}
 .caption-block:hover{border-color:var(--accent)}
 .caption-block.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
@@ -206,6 +208,7 @@ dialog label.check{flex-direction:row;align-items:center}
     <span id="campaign-name" class="muted"></span>
     <label class="sess">Sessione <select id="session-select"><option value="">—</option></select></label>
     <button id="btn-reload-docx" title="Rilegge il documento della sessione">↻</button>
+    <button id="btn-doc-colors" title="Mostra i colori del documento nel testo delle scene">🎨 Colori</button>
     <span class="spacer"></span>
     <button id="btn-preview" title="Scorre tutte le scene per un controllo finale">▶ Anteprima sessione</button>
     <button id="btn-open-player" title="Apre la finestra da mettere sullo schermo dei giocatori">🖥 Schermo giocatori <span id="player-dot" class="dot"></span></button>
@@ -580,11 +583,35 @@ const MasterDocx = (() => {
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'scena';
   }
 
-  // Mappa styleId -> {name, outline, basedOn}
+  const HIGHLIGHT = {
+    yellow: 'ffff00', green: '00ff00', cyan: '00ffff', magenta: 'ff00ff', blue: '0000ff', red: 'ff0000',
+    darkBlue: '000080', darkCyan: '008080', darkGreen: '008000', darkMagenta: '800080', darkRed: '800000',
+    darkYellow: '808000', darkGray: '808080', lightGray: 'c0c0c0', black: '000000', white: 'ffffff',
+  };
+  const hex6 = (v) => (v && /^[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : null);
+
+  // Colore del testo (c), evidenziatore (hl) e sfondo (shd) di un rPr; null = "auto"/"none", annulla quello ereditato
+  function rPrColors(rPr) {
+    const out = {};
+    if (!rPr) return out;
+    const c = child(rPr, W, 'color');
+    if (c) out.c = hex6(attr(c, W, 'val'));
+    const hl = child(rPr, W, 'highlight');
+    if (hl) out.hl = HIGHLIGHT[attr(hl, W, 'val')] || null;
+    const shd = child(rPr, W, 'shd');
+    if (shd) out.shd = hex6(attr(shd, W, 'fill'));
+    return out;
+  }
+
+  // Mappa styleId -> {name, outline, basedOn, colors}; in più .defaults (docDefaults) e .defaultPara
   function parseStyles(xml) {
     const map = new Map();
+    map.defaults = {};
+    map.defaultPara = null;
     if (!xml) return map;
     const doc = parseXml(xml);
+    const dd = doc.getElementsByTagNameNS(W, 'rPrDefault')[0];
+    if (dd) map.defaults = rPrColors(child(dd, W, 'rPr'));
     for (const st of doc.getElementsByTagNameNS(W, 'style')) {
       const id = attr(st, W, 'styleId');
       const nameEl = child(st, W, 'name');
@@ -595,9 +622,22 @@ const MasterDocx = (() => {
         name: (nameEl ? attr(nameEl, W, 'val') : '') || '',
         outline: outline ? parseInt(attr(outline, W, 'val'), 10) : null,
         basedOn: basedOn ? attr(basedOn, W, 'val') : null,
+        colors: rPrColors(child(st, W, 'rPr')),
       });
+      if (attr(st, W, 'type') === 'paragraph' && /^(1|true|on)$/.test(attr(st, W, 'default') || '')) map.defaultPara = id;
     }
     return map;
+  }
+
+  // Colori di uno stile, seguendo basedOn
+  function styleColors(styles, styleId, depth = 0) {
+    const st = styleId && depth <= 8 ? styles.get(styleId) : null;
+    return st ? { ...styleColors(styles, st.basedOn, depth + 1), ...st.colors } : {};
+  }
+  function paragraphColors(p, styles) {
+    const pPr = child(p, W, 'pPr');
+    const ps = pPr ? child(pPr, W, 'pStyle') : null;
+    return { ...styles.defaults, ...styleColors(styles, ps ? attr(ps, W, 'val') : styles.defaultPara) };
   }
 
   // Livello di heading (1..9) di uno stile, seguendo basedOn; 0 = Titolo documento; null = normale
@@ -630,13 +670,18 @@ const MasterDocx = (() => {
     return out.join('/');
   }
 
-  function runFormat(r) {
+  function runFormat(r, ctx) {
     const rPr = child(r, W, 'rPr');
-    return {
+    const fmt = {
       b: !!(rPr && isOn(child(rPr, W, 'b'))),
       i: !!(rPr && isOn(child(rPr, W, 'i'))),
       u: !!(rPr && child(rPr, W, 'u') && attr(child(rPr, W, 'u'), W, 'val') !== 'none'),
     };
+    const rs = rPr ? child(rPr, W, 'rStyle') : null;
+    const col = { ...ctx.pColors, ...(rs ? styleColors(ctx.styles, attr(rs, W, 'val')) : {}), ...rPrColors(rPr) };
+    if (col.c) fmt.c = col.c;
+    if (col.hl || col.shd) fmt.hl = col.hl || col.shd;
+    return fmt;
   }
 
   // Estrae run e immagini da un paragrafo (segue hyperlink, ins, smartTag; ignora del)
@@ -644,7 +689,7 @@ const MasterDocx = (() => {
     for (const el of p.children) {
       if (el.namespaceURI !== W) continue;
       if (el.localName === 'r') {
-        const fmt = runFormat(el);
+        const fmt = runFormat(el, ctx);
         let text = '';
         for (const c of el.children) {
           if (c.namespaceURI === W) {
@@ -734,7 +779,7 @@ const MasterDocx = (() => {
     if (!docXml) throw new Error('Non è un documento Word (.docx) valido');
     const styles = parseStyles(await zip.readText('word/styles.xml'));
     const rels = parseRels(await zip.readText('word/_rels/document.xml.rels'));
-    const ctx = { rels, meta: new Map() };
+    const ctx = { rels, styles, meta: new Map(), pColors: {} };
     const doc = parseXml(docXml);
     const body = doc.getElementsByTagNameNS(W, 'body')[0];
 
@@ -757,6 +802,7 @@ const MasterDocx = (() => {
 
     function handleParagraph(p) {
       const out = { runs: [], images: [] };
+      ctx.pColors = paragraphColors(p, styles);
       collectRuns(p, ctx, out);
       const { level, list } = paragraphInfo(p, styles);
       const text = textOf(out.runs);
@@ -810,6 +856,7 @@ const MasterDocx = (() => {
           const parts = [];
           for (const p of tc.getElementsByTagNameNS(W, 'p')) {
             const out = { runs: [], images: [] };
+            ctx.pColors = paragraphColors(p, styles);
             collectRuns(p, ctx, out);
             parts.push(out.runs);
             for (const t of out.images) { imageTargets.add(t); if (!tImages.includes(t)) tImages.push(t); }
@@ -1617,12 +1664,55 @@ function toggleBackground(path, label) {
   toast(back ? `Sfondo: ${cueLabel(back.cue)}${back.inherited ? ` (da «${back.scene.title}»)` : ''}` : 'Sfondo spento', 2000);
 }
 
-function runsHtml(runs) {
+// Colori del documento sul fondo scuro: il riferimento è il fondo più chiaro del corpo (note del master)
+const DOC_BG = [0x2a, 0x24, 0x10], DOC_FG = [0xe6, 0xe2, 0xd8], DOC_INK = [0x11, 0x11, 0x11];
+const MIN_CONTRAST = 4.5;
+const hexRgb = (h) => [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+const rgbCss = (c) => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+function luminance(c) {
+  const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrast(a, b) {
+  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+// Colore leggibile sul fondo: schiarito verso il bianco quanto basta; grigi e neri troppo scuri -> colore normale
+function readableOnBg(hex) {
+  const c = hexRgb(hex);
+  if (contrast(c, DOC_BG) >= MIN_CONTRAST) return rgbCss(c);
+  if (Math.max(...c) - Math.min(...c) < 40) return null;
+  for (let t = 0.05; t <= 1; t += 0.05) {
+    const m = c.map(v => v + (255 - v) * t);
+    if (contrast(m, DOC_BG) >= MIN_CONTRAST) return rgbCss(m);
+  }
+  return null;
+}
+// Testo su evidenziatore: il colore del run se si legge, altrimenti chiaro o scuro, quello che contrasta di più
+function inkOnHighlight(hex, hl) {
+  const bg = hexRgb(hl);
+  if (hex && contrast(hexRgb(hex), bg) >= MIN_CONTRAST) return '#' + hex;
+  return rgbCss(contrast(DOC_INK, bg) >= contrast(DOC_FG, bg) ? DOC_INK : DOC_FG);
+}
+function docColorsOn() { try { return localStorage.getItem('master:doccolors') !== '0'; } catch { return true; } }
+function setDocColors(on) {
+  try { localStorage.setItem('master:doccolors', on ? '1' : '0'); } catch {}
+  $('scene-text').classList.toggle('doc-colors', on);
+  $('btn-doc-colors').classList.toggle('active', on);
+}
+
+// colors: applica i colori del documento (solo testo del corpo; visibili con #scene-text.doc-colors)
+function runsHtml(runs, colors = false) {
   return runs.map(r => {
     let t = esc(r.text).replace(/\n/g, '<br>').replace(/\t/g, '&emsp;');
     if (r.b) t = `<b>${t}</b>`;
     if (r.i) t = `<i>${t}</i>`;
     if (r.u) t = `<u>${t}</u>`;
+    if (colors && (r.c || r.hl)) {
+      const fg = r.hl ? inkOnHighlight(r.c, r.hl) : readableOnBg(r.c);
+      const vars = (fg ? `--dc:${fg};` : '') + (r.hl ? `--dh:#${r.hl}` : '');
+      if (vars) t = `<span class="dc${r.hl ? ' dc-hl' : ''}" style="${vars}">${t}</span>`;
+    }
     return t;
   }).join('');
 }
@@ -1663,13 +1753,13 @@ function renderScene() {
       if (!b.note && inNote) closeNote();
       if (b.type === 'li') {
         if (!inList) { html += '<ul>'; inList = true; }
-        html += `<li style="margin-left:${(b.level || 0) * 1.2}em">${runsHtml(b.runs)}${imagesHtml(b.images)}</li>`;
+        html += `<li style="margin-left:${(b.level || 0) * 1.2}em">${runsHtml(b.runs, true)}${imagesHtml(b.images)}</li>`;
         return;
       }
       closeList();
       if (b.type === 'h') html += `<h4>${runsHtml(b.runs)}</h4>${imagesHtml(b.images)}`;
-      else if (b.type === 'table') html += '<table>' + b.rows.map(r => '<tr>' + r.map(c => '<td>' + c.map(runsHtml).join('<br>') + '</td>').join('') + '</tr>').join('') + '</table>';
-      else html += `<p>${runsHtml(b.runs)}${imagesHtml(b.images)}</p>`;
+      else if (b.type === 'table') html += '<table>' + b.rows.map(r => '<tr>' + r.map(c => '<td>' + c.map(rs => runsHtml(rs, true)).join('<br>') + '</td>').join('') + '</tr>').join('') + '</table>';
+      else html += `<p>${runsHtml(b.runs, true)}${imagesHtml(b.images)}</p>`;
     });
     closeNote();
     $('scene-text').innerHTML = html || '<p class="empty">(scena senza testo)</p>';
@@ -2744,6 +2834,8 @@ function bind() {
     };
   });
   for (const side of ['left', 'right']) { const v = localStorage.getItem('master:' + side); if (v) document.documentElement.style.setProperty('--' + side, v + 'px'); }
+  setDocColors(docColorsOn());
+  $('btn-doc-colors').onclick = () => setDocColors(!$('scene-text').classList.contains('doc-colors'));
 
   // drag & drop di file
   let dragDepth = 0;

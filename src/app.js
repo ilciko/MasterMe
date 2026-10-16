@@ -388,12 +388,55 @@ function toggleBackground(path, label) {
   toast(back ? `Sfondo: ${cueLabel(back.cue)}${back.inherited ? ` (da «${back.scene.title}»)` : ''}` : 'Sfondo spento', 2000);
 }
 
-function runsHtml(runs) {
+// Colori del documento sul fondo scuro: il riferimento è il fondo più chiaro del corpo (note del master)
+const DOC_BG = [0x2a, 0x24, 0x10], DOC_FG = [0xe6, 0xe2, 0xd8], DOC_INK = [0x11, 0x11, 0x11];
+const MIN_CONTRAST = 4.5;
+const hexRgb = (h) => [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+const rgbCss = (c) => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+function luminance(c) {
+  const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrast(a, b) {
+  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+// Colore leggibile sul fondo: schiarito verso il bianco quanto basta; grigi e neri troppo scuri -> colore normale
+function readableOnBg(hex) {
+  const c = hexRgb(hex);
+  if (contrast(c, DOC_BG) >= MIN_CONTRAST) return rgbCss(c);
+  if (Math.max(...c) - Math.min(...c) < 40) return null;
+  for (let t = 0.05; t <= 1; t += 0.05) {
+    const m = c.map(v => v + (255 - v) * t);
+    if (contrast(m, DOC_BG) >= MIN_CONTRAST) return rgbCss(m);
+  }
+  return null;
+}
+// Testo su evidenziatore: il colore del run se si legge, altrimenti chiaro o scuro, quello che contrasta di più
+function inkOnHighlight(hex, hl) {
+  const bg = hexRgb(hl);
+  if (hex && contrast(hexRgb(hex), bg) >= MIN_CONTRAST) return '#' + hex;
+  return rgbCss(contrast(DOC_INK, bg) >= contrast(DOC_FG, bg) ? DOC_INK : DOC_FG);
+}
+function docColorsOn() { try { return localStorage.getItem('master:doccolors') !== '0'; } catch { return true; } }
+function setDocColors(on) {
+  try { localStorage.setItem('master:doccolors', on ? '1' : '0'); } catch {}
+  $('scene-text').classList.toggle('doc-colors', on);
+  $('btn-doc-colors').classList.toggle('active', on);
+}
+
+// colors: applica i colori del documento (solo testo del corpo; visibili con #scene-text.doc-colors)
+function runsHtml(runs, colors = false) {
   return runs.map(r => {
     let t = esc(r.text).replace(/\n/g, '<br>').replace(/\t/g, '&emsp;');
     if (r.b) t = `<b>${t}</b>`;
     if (r.i) t = `<i>${t}</i>`;
     if (r.u) t = `<u>${t}</u>`;
+    if (colors && (r.c || r.hl)) {
+      const fg = r.hl ? inkOnHighlight(r.c, r.hl) : readableOnBg(r.c);
+      const vars = (fg ? `--dc:${fg};` : '') + (r.hl ? `--dh:#${r.hl}` : '');
+      if (vars) t = `<span class="dc${r.hl ? ' dc-hl' : ''}" style="${vars}">${t}</span>`;
+    }
     return t;
   }).join('');
 }
@@ -434,13 +477,13 @@ function renderScene() {
       if (!b.note && inNote) closeNote();
       if (b.type === 'li') {
         if (!inList) { html += '<ul>'; inList = true; }
-        html += `<li style="margin-left:${(b.level || 0) * 1.2}em">${runsHtml(b.runs)}${imagesHtml(b.images)}</li>`;
+        html += `<li style="margin-left:${(b.level || 0) * 1.2}em">${runsHtml(b.runs, true)}${imagesHtml(b.images)}</li>`;
         return;
       }
       closeList();
       if (b.type === 'h') html += `<h4>${runsHtml(b.runs)}</h4>${imagesHtml(b.images)}`;
-      else if (b.type === 'table') html += '<table>' + b.rows.map(r => '<tr>' + r.map(c => '<td>' + c.map(runsHtml).join('<br>') + '</td>').join('') + '</tr>').join('') + '</table>';
-      else html += `<p>${runsHtml(b.runs)}${imagesHtml(b.images)}</p>`;
+      else if (b.type === 'table') html += '<table>' + b.rows.map(r => '<tr>' + r.map(c => '<td>' + c.map(rs => runsHtml(rs, true)).join('<br>') + '</td>').join('') + '</tr>').join('') + '</table>';
+      else html += `<p>${runsHtml(b.runs, true)}${imagesHtml(b.images)}</p>`;
     });
     closeNote();
     $('scene-text').innerHTML = html || '<p class="empty">(scena senza testo)</p>';
@@ -1515,6 +1558,8 @@ function bind() {
     };
   });
   for (const side of ['left', 'right']) { const v = localStorage.getItem('master:' + side); if (v) document.documentElement.style.setProperty('--' + side, v + 'px'); }
+  setDocColors(docColorsOn());
+  $('btn-doc-colors').onclick = () => setDocColors(!$('scene-text').classList.contains('doc-colors'));
 
   // drag & drop di file
   let dragDepth = 0;

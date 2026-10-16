@@ -35,11 +35,35 @@ const MasterDocx = (() => {
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'scena';
   }
 
-  // Mappa styleId -> {name, outline, basedOn}
+  const HIGHLIGHT = {
+    yellow: 'ffff00', green: '00ff00', cyan: '00ffff', magenta: 'ff00ff', blue: '0000ff', red: 'ff0000',
+    darkBlue: '000080', darkCyan: '008080', darkGreen: '008000', darkMagenta: '800080', darkRed: '800000',
+    darkYellow: '808000', darkGray: '808080', lightGray: 'c0c0c0', black: '000000', white: 'ffffff',
+  };
+  const hex6 = (v) => (v && /^[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : null);
+
+  // Colore del testo (c), evidenziatore (hl) e sfondo (shd) di un rPr; null = "auto"/"none", annulla quello ereditato
+  function rPrColors(rPr) {
+    const out = {};
+    if (!rPr) return out;
+    const c = child(rPr, W, 'color');
+    if (c) out.c = hex6(attr(c, W, 'val'));
+    const hl = child(rPr, W, 'highlight');
+    if (hl) out.hl = HIGHLIGHT[attr(hl, W, 'val')] || null;
+    const shd = child(rPr, W, 'shd');
+    if (shd) out.shd = hex6(attr(shd, W, 'fill'));
+    return out;
+  }
+
+  // Mappa styleId -> {name, outline, basedOn, colors}; in più .defaults (docDefaults) e .defaultPara
   function parseStyles(xml) {
     const map = new Map();
+    map.defaults = {};
+    map.defaultPara = null;
     if (!xml) return map;
     const doc = parseXml(xml);
+    const dd = doc.getElementsByTagNameNS(W, 'rPrDefault')[0];
+    if (dd) map.defaults = rPrColors(child(dd, W, 'rPr'));
     for (const st of doc.getElementsByTagNameNS(W, 'style')) {
       const id = attr(st, W, 'styleId');
       const nameEl = child(st, W, 'name');
@@ -50,9 +74,22 @@ const MasterDocx = (() => {
         name: (nameEl ? attr(nameEl, W, 'val') : '') || '',
         outline: outline ? parseInt(attr(outline, W, 'val'), 10) : null,
         basedOn: basedOn ? attr(basedOn, W, 'val') : null,
+        colors: rPrColors(child(st, W, 'rPr')),
       });
+      if (attr(st, W, 'type') === 'paragraph' && /^(1|true|on)$/.test(attr(st, W, 'default') || '')) map.defaultPara = id;
     }
     return map;
+  }
+
+  // Colori di uno stile, seguendo basedOn
+  function styleColors(styles, styleId, depth = 0) {
+    const st = styleId && depth <= 8 ? styles.get(styleId) : null;
+    return st ? { ...styleColors(styles, st.basedOn, depth + 1), ...st.colors } : {};
+  }
+  function paragraphColors(p, styles) {
+    const pPr = child(p, W, 'pPr');
+    const ps = pPr ? child(pPr, W, 'pStyle') : null;
+    return { ...styles.defaults, ...styleColors(styles, ps ? attr(ps, W, 'val') : styles.defaultPara) };
   }
 
   // Livello di heading (1..9) di uno stile, seguendo basedOn; 0 = Titolo documento; null = normale
@@ -85,13 +122,18 @@ const MasterDocx = (() => {
     return out.join('/');
   }
 
-  function runFormat(r) {
+  function runFormat(r, ctx) {
     const rPr = child(r, W, 'rPr');
-    return {
+    const fmt = {
       b: !!(rPr && isOn(child(rPr, W, 'b'))),
       i: !!(rPr && isOn(child(rPr, W, 'i'))),
       u: !!(rPr && child(rPr, W, 'u') && attr(child(rPr, W, 'u'), W, 'val') !== 'none'),
     };
+    const rs = rPr ? child(rPr, W, 'rStyle') : null;
+    const col = { ...ctx.pColors, ...(rs ? styleColors(ctx.styles, attr(rs, W, 'val')) : {}), ...rPrColors(rPr) };
+    if (col.c) fmt.c = col.c;
+    if (col.hl || col.shd) fmt.hl = col.hl || col.shd;
+    return fmt;
   }
 
   // Estrae run e immagini da un paragrafo (segue hyperlink, ins, smartTag; ignora del)
@@ -99,7 +141,7 @@ const MasterDocx = (() => {
     for (const el of p.children) {
       if (el.namespaceURI !== W) continue;
       if (el.localName === 'r') {
-        const fmt = runFormat(el);
+        const fmt = runFormat(el, ctx);
         let text = '';
         for (const c of el.children) {
           if (c.namespaceURI === W) {
@@ -189,7 +231,7 @@ const MasterDocx = (() => {
     if (!docXml) throw new Error('Non è un documento Word (.docx) valido');
     const styles = parseStyles(await zip.readText('word/styles.xml'));
     const rels = parseRels(await zip.readText('word/_rels/document.xml.rels'));
-    const ctx = { rels, meta: new Map() };
+    const ctx = { rels, styles, meta: new Map(), pColors: {} };
     const doc = parseXml(docXml);
     const body = doc.getElementsByTagNameNS(W, 'body')[0];
 
@@ -212,6 +254,7 @@ const MasterDocx = (() => {
 
     function handleParagraph(p) {
       const out = { runs: [], images: [] };
+      ctx.pColors = paragraphColors(p, styles);
       collectRuns(p, ctx, out);
       const { level, list } = paragraphInfo(p, styles);
       const text = textOf(out.runs);
@@ -265,6 +308,7 @@ const MasterDocx = (() => {
           const parts = [];
           for (const p of tc.getElementsByTagNameNS(W, 'p')) {
             const out = { runs: [], images: [] };
+            ctx.pColors = paragraphColors(p, styles);
             collectRuns(p, ctx, out);
             parts.push(out.runs);
             for (const t of out.images) { imageTargets.add(t); if (!tImages.includes(t)) tImages.push(t); }

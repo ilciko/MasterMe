@@ -75,6 +75,8 @@ code{background:var(--bg3);padding:1px 5px;border-radius:4px}
 .master-note{background:#2a2410;border:1px solid #6b5a1e;border-left:4px solid var(--accent);border-radius:6px;padding:8px 12px;margin:.6em 0 1em;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px}
 .master-note .note-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:4px}
 .master-note p:last-child,.master-note ul:last-child{margin-bottom:0}
+#scene-text.doc-colors .dc{color:var(--dc)}
+#scene-text.doc-colors .dc-hl{background:var(--dh);border-radius:2px;padding:0 .12em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .caption-block{display:flex;gap:10px;align-items:flex-start;background:var(--bg3);border:1px solid var(--line);border-radius:6px;padding:8px 12px;margin:.4em 0;cursor:pointer;font-size:15px}
 .caption-block:hover{border-color:var(--accent)}
 .caption-block.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
